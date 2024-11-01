@@ -1,0 +1,5 @@
+package com.tec._6._2.movies.entities;
+
+public class User {
+
+}

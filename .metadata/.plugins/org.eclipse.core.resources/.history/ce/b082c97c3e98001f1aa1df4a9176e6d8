@@ -1,0 +1,5 @@
+spring.application.name=movies
+
+spring.profiles.active=test
+
+spring.jpa.open-in-view=false
