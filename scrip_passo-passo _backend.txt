@@ -1,0 +1,356 @@
+Objetivos do projeto para esta aula:
+
+- Implementar o back end
+- Modelo de domínio
+- Acesso a banco de dados
+- Estruturar o back end no padrão camadas
+- Criar endpoints da API REST
+- Implantação na nuvem
+
+===== Configurações de segurança =====
+
+- vamos abrir o STS e selecionar o projeto
+- na pasta src é onde vamos colocar as classes Java
+- no pacote principal do projeto vamos criar uma nova classe  para a config de segurança de cors que é o contato de sistemas diferentes em hosts diferentes por meio dessa config podemos liberar esse acesso
+- no nome do pacote acrescentar .config para criar um subpacote
+- no nome da classe colocar SecurityConfig
+- vamos colar o código:
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+	@Autowired
+	private Environment env;
+
+	@Override
+	protected void configure(HttpSecurity http) throws Exception {
+		if (Arrays.asList(env.getActiveProfiles()).contains("test")) {
+			http.headers().frameOptions().disable();
+		}
+		
+		http.cors().and().csrf().disable();
+		http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+		http.authorizeRequests().anyRequest().permitAll();
+	}
+
+	@Bean
+	CorsConfigurationSource corsConfigurationSource() {
+		CorsConfiguration configuration = new CorsConfiguration().applyPermitDefaultValues();
+		configuration.setAllowedMethods(Arrays.asList("POST", "GET", "PUT", "DELETE", "OPTIONS"));
+		final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", configuration);
+		return source;
+	}
+}
+
+- vamos importar as classes com o atalho ctrl+shift+o
+- vamos escolher o nome menor, é o que não tem o reactive e clicar em next
+- no próximo escolher o que tem o springframework
+- no próximo também escolher o que não tem o reactive
+
+
+===== Entidades e Seed do BD =====
+
+Modelo conceitual:
+
+- vamos olhar o modelo das classes que vamos criar nesse projeto (mostrar a imagem das enidades)
+- vamos criar a entidade Movie com seus atributos (perguntar sobre os atributos)
+- o mesmo para user
+- na entidade score falar que ela foi criada por causa da relação muito para muitos com um atributo extra 
+- vamos agora criar as entidades
+- criar o pacote entities
+- primeiro a class Movie e seus atributos:
+	Long id
+	String title
+	Double score
+	Integer count
+	String image
+
+- agora vamos fazer o construtor vazio e o com argumentos
+- agora os getters e setters
+- agora a class User, seus atributos, construtores e os getters e setters
+	Long id
+	String email
+
+- nossa próxima classe é o score como essa classe tem relação com as outras entidades é preciso criar uma chave primária para a relação entre as classes que vai ser uma classe auxiliar, lembrando das formas normais é preciso colocar essa relação em outra classe
+- cria uma classe chamada ScorePK e nessa classe colocar a referência das classes Movies e User:
+private Movie movie;
+private User user;
+- vamos criar os construtores e getters e setters
+- vamos criar a classe Score e seus atributos
+	private ScorePK id = new ScorePK(); // esse atributo vai fazer referência para as outras classes e colocamos o new para instanciar o objeto(criar esse objeto)
+	private Double value; que vai ser a nota de avaliação do filme
+
+- agora os construtores e getters e setters
+- agora para associar o score com o filme vamos criar um set para isso 
+	public void setMovie(Movie movie) {
+		id.setMovie(movie);  // assim salvamos a referêcia 
+	}
+	public void setUser(User user) {
+		id.setUser(user);
+	}
+- pronto fizemos nossas classes
+
+- vamos agora configurar o banco de dados por enquanto vamos utilizar o BD do H2
+- para configurar o BD vamos no arquivo application.properties e colocar algumas linhas
+- primeiro as informações do perfil de teste e a limitação do JPA para funcionar na camada de serviço
+
+spring.profiles.active=test
+
+spring.jpa.open-in-view=false
+
+- vamos criar um arquivo na pasta do source e color as configurações
+- arquivo: application-test.properties
+- config: 
+# Dados de conexão com o banco H2
+spring.datasource.url=jdbc:h2:mem:testdb
+spring.datasource.username=sa
+spring.datasource.password=
+
+# Configuração do cliente web do banco H2
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+
+# Configuração para mostrar o SQL no console
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+
+- simplismente estamos passando um usuário e senha; um cliente para administrar o BD e por último  mostrar o SQL no console do STS
+- vamos agora fazer o mapeamento do objeto relacional nas classes
+- simplismente são config que informam para JPA(que faz esse mapeamento) como os objetos serão convertidos para o BD
+- vamos colocar em cada classe uma anotação do Spring Boot:
+
+CLASSE MOVIE (lembrar dos imports)
+@Entity
+@Table(name = "tb_movie");  
+
+- agora precisamos informar que o id da classe será o id do BD:
+
+@Id
+@GeneratedValue(strategy = GenerationType.IDENTITY) // configura que o id será auto increment
+
+- o mesmo para a classe User só alterar o nome da tabela (tb_user)
+
+- no Score vai ficar:
+@Entity
+@Table(name = "tb_score");
+
+- no id como ele faz referência ele vai ser assim:
+
+@EmbeddedId
+
+- na classe ScorePK tem uma particularidade
+- como temos chaves estrangeiras precisamos fazer a relação entre elas:
+
+@Embeddable
+
+- e nas referencias das chaves estrangeiras do movie e do user fica assim:
+
+@ManyToOne
+@JoinColumn(name = "movie_id")
+private Movie movie; 
+
+@ManyToOne
+@JoinColumn(name = "user_id")
+private USer user;
+
+vamos ver se funcionou
+
+- agora vamos popular o seed do BD 
+- primeiro criar o arquivo import.sql dentro do resource
+- vamos copiar e colar os inserts (passar para os alunos)
+- vamos conferir no H2
+
+===== BUSCANDO FILME =====
+
+- explicar o padrão de camadas
+
+- vamos agora criar o objeto repository que é a camada de acesso a dados
+- vamos criar uma nova classe e chamar de 'MovieRepository' e no pacote colocar o nome 'repositories'
+
+- para implementar o objeto que vai ser responsável por fazer as operações de buscar, salvar, deletar e atualizar basta trocar de 'classe' para 'inteface' e essa inteface vai herdar da JpaRepository essas operações fica assim:
+
+public interface MovieRepository extends JpaRepository <Movie, Long> {
+
+}
+
+- agora o DTO que é um objeto para transações de dados e o DTO aqui esta fazendo a busca de filmes
+- vamos criar um DTO que vai ter os mesmos atributos do movie sem as anotações
+- criar uma classe MovieDTO no subpacote .dto
+
+- podemos copiar os atributos daclasse movie para o DTO
+- a diferença é que o dto não vai estar sendo monitorado pela ORM da JPA
+
+- vamos criar o construtor vazio e o com argumentos
+- vamos criar também um construtor que recebe a entidade para facilitar a cópia dos objetos para o dto:
+
+public MovieDTO(Movie movie) {
+  id = movie.getId();
+  title = movie.getTitle();
+  score = movie.getScore();
+  count = movie.getCount();
+  image = movie.getImage();
+} 
+
+- vamos colocar o getters e setters
+
+- agora vamos criar o service que vai realizar a transação de buscar os filmes
+- criar uma nova classe e chamar de MovieService no pacote services
+- precisamos colocar a anotação @Service que registra essa classe como um componente do sistema
+- vamos agora criar os métodos primeiro o de buscar os filmes
+
+public List<MovieDTO> findAll() {
+
+} 
+
+- nesse método o retorno precisa ser DTO por causa do contato feito entre a camada de serviço e o controlador que precisa devolver a resposta para o DTO
+- a ideia e resolver tudo dentro do service e devolver um objeto simples sem transação
+- agora para faze uma consulta no BD vamos usar o repository
+- primeiro vamos colocar a instancia do repository:
+
+@Autowired // que vai gerenciar a dependencia do objeto
+    private MovieRepository repository;
+
+public List<MovieDTO> findAll() {
+	
+} 
+
+- agora vamos chamar o BD com o repository. que vai mostrar as operações do repository
+- vamos utilizar o findAll() e colocar o retorno desse método:
+
+public List<MovieDTO> findAll() {
+    List<Movie> result = repository.findAll();
+}
+
+- vamos converter de Movie para DTO
+
+- mas antes vamos paginar nossa busca alterando alguns argumentos:
+
+public Page<MovieDTO> findAll(Pageable pageable) {
+    Page<Movie> result = repository.findAll(pageable);
+}
+
+- vamos colocar uma função para converter Movie para DTO
+
+public Page<MovieDTO> findAll(Pageable pageable) {
+    Page<Movie> result = repository.findAll(pageable);
+    Page<MovieDTO> page = result.map(x -> new MovieDTO(x));
+    return page;
+}
+
+- o map vai aplicar uma função a cada elemento da lista que colocamos o nome de x e retorna a variavel page criada
+- para resolver toda essa transação vamos colocar uma anotação @Transactional do spring framework com uma propriedade que informa que esse método é de leitura:
+
+@Transactional(readOnly = true)
+public Page<MovieDTO> findAll(Pageable pageable) {
+    Page<Movie> result = repository.findAll(pageable);
+    Page<MovieDTO> page = result.map(x -> new MovieDTO(x));
+    return page;
+}
+
+- para buscar por um filme vamos implementar o mesmo método com algumas altrações para um filme específico:
+
+@Transactional(readOnly = true)
+public MovieDTO findById(Long id) {
+    Movie result = repository.findById(id).get();
+    MovieDTO dto = new MovieDTO(result);
+    return dto;
+}
+
+
+- agora criar o controller
+- criar uma nova classe chamar de MovieController e no subpacote colocar controllers
+- essa camada vai implementar o endpoint que é o endereço para acesssar no navegador ou no postman como uma página de filmes
+- vamos configurar com as anotações:
+
+@RestController
+@RequestMapping(value = "/movies")
+public class MovieController {
+}
+
+- agora vamos cirar o método para retornar a página de filmes:
+
+public Page<MovieDTO> findAll(Pageable pageable) {
+
+}
+
+- aqui essa classe precisa instanciar o objeto da classe service 
+- vamos colocar o componente
+
+@Autowired
+private MovieService service;
+
+- e pra finalizar coolocamos o return do método:
+
+public Page<MovieDTO> findAll(Pageable pageable) {
+    return service.findAll(pageable);
+}
+
+- agora vamos colocar o endpoint para responder as requisições HTTP
+- basta colocar a anotação @GetMapping em cima do método:
+
+@GetMapping
+public Page<MovieDTO> findAll(Pageable pageable) {
+    return service.findAll(pageable);
+}
+
+- para buscar por um filme vamos utilizar o mesmo método e fazer as alterações:
+
+@GetMapping(value = "/{id}")
+public MovieDTO findById(@PathVariable Long id) {
+    return service.findById(id);
+}
+
+- vamos testar no navegado
+- no postman vamos criar uma nova coleção e testar os endpoints
+- vamos usar um atributo no postman para consultar uma quantidade de elemento por exemplo
+
+http://localhost:8080/movies?size=10
+
+- para consultar a segunda página
+- por padrão a página está em 0
+- colocando outro atributo ele vai buscar a próxima página:
+
+http://localhost:8080/movies?size=10&page=1
+
+- para buscar por um filme basta colocar o id
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
