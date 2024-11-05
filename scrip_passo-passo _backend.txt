@@ -314,10 +314,231 @@ http://localhost:8080/movies?size=10
 
 http://localhost:8080/movies?size=10&page=1
 
-- para buscar por um filme basta colocar o id
+- para buscar por um filme basta colocar o /id
 
 
+- vamos agora salvar as avaliações
 
+===== EXPLICAÇÂO =====
+
+para salvar a avaliação, precisamos identificar o id do filme, colocar o email e a nota(avaliação) do usuário, para salvar essa avaliação e mostrar na tela a nota(avaliação) atualizada, para isso vamos criar uma lógica para entender o que temos que fazer:
+
+(mostrar a imagem com a lógica) 
+
+ - primeiro vamos criar um DTO para receber os 3 dados que são o id do filme, email e resultado da avaliação
+- no pacote do DTO vamos criar uma nova classse e chamar de ScoreDTO
+- vamos colocar os atributos:
+
+Long movieid;
+String email;
+Double score;
+
+- agora os construtore e os getters e setters
+
+- vamos agora criar um endpoint no controller para quando o usuário preencher os dados e clicar no salvar esses dados sejam salvos no BD
+- outra questão é fazer com que um usuário tenha apenas uma avaliação, caso o mesmo email coloque outra nota não pode ter alteração na avaliação 
+- para fazer isso o endpoint vai ser o verbo http  PUT que serve para atualizar e salvar de forma idempontente:
+**Um método HTTP é idempotente se uma requisição idêntica pode ser feita uma ou mais vezes em sequência com o mesmo efeito enquanto deixa o servidor no mesmo estado.**
+
+- no pacote do controller podemos cópiar o MovieController o nome da classe vai ser ScoreController
+- vamos mudar o caminho para "/scores"
+- e vamos apagar a chamada do service e a busca de todos os filmes
+- vamos deixar a busca por id e trocar de @GetMapping para @PutMapping apagar o argumento e ajustar os imports
+
+- no método vamos mudar o nome dele para saveScore e o argumento dele vai ser o DTO que criamos:
+
+saveScore(ScoreDTO dto)
+- fica assim:
+@PutMapping
+public MovieDTO saveScore(ScoreDTO dto){
+  return null;
+} 
+
+- estamos fazendo isso para entender que a tela do formulário para avaliação vai ser um put que recebe o dto do  ScoreDTO que criamos
+
+- fazer um put no postman
+- fazendo esse put temos o corpo criado em Json que tem a mesma estrutura do ScoreDTO o programa vai entender que o que foi criado no put vai casar com o ScoreDTO
+- e precisamos colocar uma anotação no nosso método para que ele entenda e case as informações 
+
+- no argumento do método vamos colocar o @RequestBody e fazer o import:
+
+saveScore(@RequestBody ScoreDTO dto){
+  return null;
+} 
+
+- agora vamos para a classe serviço que integra tudo isso que fizemos
+- vamos copiar o MovieService para ScoreService
+- vamos apagar os métodos que existem no service
+- vamos precisar do repository para buscar o id do filme que vai ser feita a atualização por exemplo
+- só vamos mudar o nome da variável de repository para movieRepository
+- vamos criar um user repository porque vamos precisar recuperar o usuário pelo email 
+- no pacote do repository vamos criar uma nova interface de UserRepository e extender a JpaRepository
+- aproveitando vamos criar o ScoreRepository que vai servir para salvar o score
+- aqui podemos copiar o score para acelerar o processo e mudar o tipo da entidade para Score e o tipo do id dela que é o ScorePK e fazer os imports
+- para fazer a busca por email vamos fazer um método utilizando o Jpa no UserRepository:
+User finByEmail(String email);
+- quando colocamos no nome do método e o argumento do email o Jpa entende e vai buscar o email do usuário específico
+- o que fizemo foi padronizar o nome do método
+- vamos voltar no ScoreService e vamos chamar o que criamos:
+- podemos copiar o movieRepository e só alterar os nomes:
+
+@Autowired
+private MovieRepository movieRepository 
+
+@Autowired
+private UserRepository userRepository
+
+@Autowired
+private ScoreRepository scoreRepository
+
+- agora vamos fazer o método para salvar a partir do DTO que criamos:
+
+@Transactional
+public void saveScore(ScoreDTO dto){
+   
+}
+
+- vamos fazer agora usar a lógica criada:
+
+@Transactional
+public void saveScore(ScoreDTO dto){
+   User user = userRepository.findByEmail(dto.getEmail()); // aqui vamos buscar o usuário pelo email e guardar na variável user
+}
+- fazer o import do User
+- precisamos verificar se o usuário não existe é preciso inserir ele no BD fica assim:
+@Transactional
+public void saveScore(ScoreDTO dto){
+   User user = userRepository.findByEmail(dto.getEmail());
+   if(user == null){
+      user = new User():
+      user.setEmail(dto.getEmail()); 
+   }
+}
+
+- com isso criamos um objeto novo com o email para inserir no BD e agora vamos salvar no BD:
+
+@Transactional
+public void saveScore(ScoreDTO dto){
+   User user = userRepository.findByEmail(dto.getEmail());
+   if(user == null){
+      user = new User():
+      user.setEmail(dto.getEmail()); 
+      user = userRepository.saveAndFlush(user);
+   }
+}
+
+- assim o objeto para acessa os dados é o repository, o saveAndFlush é um método para salvar no BD e atualizar por garantia, passando o user que vai retornar o novo objeto na variável user
+
+- agora vamos implementar o movie para quando o usuário colocar a nota vai ser necessário saber tanto o id do filme como o email do usuário, é o que tem na lógica:
+
+Movie movie = movieRepository.findById(dto.getMovieId()).get();
+
+- vamos criar agora o score e prepara ele com a referência do usuário e do movie e também receber a nota:
+
+Score score = new Score();
+score.setMovie(movie);
+score.setUser(user);
+score.setValue(dto.getScore);
+
+- temos o nosso objeto com os dados necessários
+- agora vamos salvar com o saveAndFlush:  
+
+Score score = new Score();
+score.setMovie(movie);
+score.setUser(user);
+score.setValue(dto.getScore);
+
+score = scoreRepository.saveAndFlush(score);
+
+- completando vamos recalcular a avaliação média do filme e salvar no BD
+- para isso é necessário ter acesso a todos as avaliações de um filme
+- vamos fazer isso alterando a classe Movie VAMOS FAZER ISSO COM CALMA E COM BASTANTE ATENÇÂO
+- na classe movie vamos colocar uma coleção que garante não repetir os dados:
+
+private Set<Score> score // colocar depois do atributo image
+
+- com isso estamos fazendo uma referência para todas as avaliações de um determinado filme
+- vamos instanciar o SET:
+
+private Set<Score> scores = new HashSet<>();
+
+- o HashSet é uma classe que implementa um interface e o Set é uma interface sem muitos detalhes (Abstrair)
+- fazer o import e o método get do Set gerando pelo getters e setters fica assim:
+
+public Set<Score> getScores(){
+   return scores;
+}
+
+- com atenção ainda vamos mapear essa lista no modelo de dados
+- para mapear quem seria essa coleção vamos colocar uma anotação do JPA @OneToMany porque um filme pode ter várias avaliações e fazer o import fica assim:
+
+@OneToMany
+private Set<Score> score = new HashSet<>();
+
+e colocar um atributo sem erra o nome dele por favor:
+
+@OneToMany(mappedBy = "id.movie")
+private Set<Score> score = new HashSet<>();
+
+- assim é possível acessar as avaliações a partir de um objeto de filme(movie)
+
+- agora no ScoreService vamos fazer uma forma de acessar essa lista por meio de um FOR que vai varrer todos os scores dentro de um determinado filme:
+
+for (Score s : movie.getScores()){
+
+}
+
+- antes vamos calcular a soma e sempre que o for varrer soma vai receber o valor do score e acumular esses valores
+
+double sum = 0.0;
+for (Score s : movie.getScores()){
+    sum = sum + s.getValue();
+}
+
+
+- vamos agora fazer a média, vamos pegar a quantidade e dividir pela soma:
+
+double sum = 0.0;
+for (Score s : movie.getScores()){
+    sum = sum + s.getValue();
+}
+
+double avg = sum / movie.getScores().size(); // .size() é um método para pegar o tamaho da coleção
+
+- vamos salvar a nova média e a contagem no BD:
+
+movie.setScore(avg);
+movie.setCount(movie.getScores().size());
+
+movie = movieRepository.save(movie);
+
+- UFA feita a lógica vamos testar
+
+- para testar vamos alterar o return do método para o postman mostrar se salvou
+- alterar o void para MovieDTO e no final colocar:
+return new MovieDTO(movie); 
+- fazer o import
+
+- no scoreController vamos chamar o ScoreService:
+
+@Autowired
+private ScoreService service;
+
+- no método colocar:
+
+@PutMapping
+public MovieDTO saveScore(@RequestBody ScoreDTO dto) {
+    MovieDTO movieDTO = service.saveScore(dto);
+    return movieDTO;
+}
+
+- vamos agora testar e olhar no postman
+
+- vamos olhar no h2 o email do usuário salvo, o score e o movie 
+
+- vamos subir no github.
+
+1:40:00 Vaiser a integração com o BD no meu caso quero fazer do MySql e preciso pesquisar como fazer isso 
 
 
 
