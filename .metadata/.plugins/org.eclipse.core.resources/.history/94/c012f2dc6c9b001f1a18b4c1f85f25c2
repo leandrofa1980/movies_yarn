@@ -1,0 +1,23 @@
+package com.tec._6._2.movies.services;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.tec._6._2.movies.repositories.MovieRepository;
+import com.tec._6._2.movies.repositories.ScoreRepository;
+import com.tec._6._2.movies.repositories.UserRepository;
+
+@Service
+public class ScoreService {
+	
+	@Autowired
+	private MovieRepository movieRepository;
+	
+	@Autowired
+	private UserRepository userRepository;
+	
+	@Autowired
+	private ScoreRepository scoreRepository;
+	
+
+}
