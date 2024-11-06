@@ -1,0 +1,7 @@
+spring.application.name=movies
+
+spring.profiles.active=dev
+
+spring.jpa.open-in-view=false
+
+spring.jpa.properties.hiernate.dialect=org.hibernate.dialect.MySQL8Dialect
